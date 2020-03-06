@@ -15,8 +15,10 @@ namespace VLD.Pkmn {
         #endregion
 
         #region Serialized Fields
-        public GameObject[] _possibleEntities;
-        public Entity[] _entitiesInCombat;
+        public Entity _defaultEntity = null;
+        public Entity[] _entitiesInCombat = new Entity[2];  //This should change to a list in case I want to implement more than a 1v1.
+        public UnityEngine.UI.Slider[] _hpSlider = new UnityEngine.UI.Slider[2];
+        public GameObject[] _attackSelectionMenus = new GameObject[2];
         #endregion
 
         #region Standard Attributes
@@ -27,10 +29,27 @@ namespace VLD.Pkmn {
         #endregion
 
         #region API Methods
+        public void SetEntitiesToCombat(Entity player, Entity oponent) {
+            player.ResetForCombat();
+            oponent.ResetForCombat();
+            _entitiesInCombat[0] = player;
+            _entitiesInCombat[1] = oponent;
+        }
+
+        public void StartCombat() {
+            
+        }
+
+        public void CombatFinished() {
+            _entitiesInCombat[0] = _defaultEntity;
+            _entitiesInCombat[1] = _defaultEntity;
+        }
+
         public void SelectAttack(int userEntityIndex, int selectedAttackIndex) {
             if(_entitiesInCombat[userEntityIndex].TryUseAttack(selectedAttackIndex)) {  //Attack is available
+                HideAttackSelectionMenu(userEntityIndex);
                 _entitiesInCombat[userEntityIndex].HasSelectedAttack = true;    //Tell the entity it has selected an available attack.
-                SetTarget(userEntityIndex);   //Tell the entity it's intended target for this turn. Set target first before setting it as ready since once both are ready it will inmediatelly compute the turns outcome.
+                SetTarget(userEntityIndex);   //Tell the entity it's intended target for this turn. Set target first before setting it as ready since once both are ready it will immediatelly compute the turns outcome.
                 EntityIsReady();    //The entity decided on an action.
 
                 //Disable selection menu. (Selection menu could potentially manage when an attack is not available anymore in order to disable the button functionality)
@@ -52,7 +71,7 @@ namespace VLD.Pkmn {
         #region Other methods
         private void PopulateEntityInformation(Entity entityToPopulate) {
             //Use GetAttacks and Stats to populate HP and attacks info on both screens.
-            EntityAttacksManager.Attack[] entityAttacks = entityToPopulate.AttacksManager.GetAttacks();
+            Attacks.Attack[] entityAttacks = entityToPopulate.AttacksManager.GetAttacks();
         }
 
         private void EntityIsReady() {
@@ -64,12 +83,13 @@ namespace VLD.Pkmn {
         }
 
         /// <summary>
-        /// Temporary method to decide the attacks target, for now the game is based around 1v1 so there will only be one possible target.
+        /// Temporary method to decide the attacks target, for now the game is based around 1v1 so there will only be one possible target -> Index + 1.
+        /// This should be changed for a selection sys
         /// For the buffing/healing effects the AttackEffect override will take care of targeting itself instead of the target.
         /// </summary>
-        /// <param name="userEntityIndex"></param>
+        /// <param name="userEntityIndex">The entity we want to give a target to.</param>
         private void SetTarget(int userEntityIndex) {
-            int targetIndex = (userEntityIndex + 1) % _entitiesInCombat.Length;
+            int targetIndex = (userEntityIndex + 1) % _entitiesInCombat.Length; //Loops around the number of targets. Since its a 1v1 we only need to target the next one in the array (0 or 1)
             _entitiesInCombat[userEntityIndex].SetAttacksTarget(_entitiesInCombat[targetIndex]);   //This is a temporary line that decides the attacks target
         }
 
@@ -78,8 +98,13 @@ namespace VLD.Pkmn {
         /// </summary>
         private void ComputeTurn() {
             //Go through the entities' attacks in order of speed.
+            for(int i = 0; i < _entitiesInCombat.Length; ++i) {
+                ComputeEntityAttack(_entitiesInCombat[i]);
+            }
             //Call ComputeEntityAttack(entity), which will do its attack effect, one by one.
             //TODO: IT'S IN HERE THAT THE TURN'S ANIMATION/TEXT WILL BE DISPLAYED --> MIGHT BE GOOD IDEA TO CREATE A COROUTINE FOR THE TURN'S ACTION SO THAT WE CAN DISPLAY A TEXT, WAIT A FEW SECONDS AND CONTINUE WITH THE TURN'S COMPUTATIONS.
+
+            DisplayNewHealth();
 
             //Once everything is done go to next turn.
             NextTurn();
@@ -95,9 +120,37 @@ namespace VLD.Pkmn {
             //Call all entities ResetForTurn().
             for(int i = 0; i < _entitiesInCombat.Length; ++i) {
                 _entitiesInCombat[i].ResetForTurn();
+                
+                //Pop the attack selection menu back on.
+                ShowAttackSelectionMenu(i);
             }
+
+        }
+
+        [ContextMenu("HealthDisplay")]
+        private void DisplayNewHealth() {
+            for(int i = 0; i < _entitiesInCombat.Length; ++i) {
+                float newValue = _entitiesInCombat[i].Health / (float)(_entitiesInCombat[i].MaxHealth);
+                _hpSlider[i].value = newValue;
+            }
+        }
+
+        [ContextMenu("HitRandom")]
+        private void HitRandomEntity() {
+            int randomIndex = UnityEngine.Random.Range(0, 2);
+            _entitiesInCombat[randomIndex].ReduceHealth(Mathf.FloorToInt(_entitiesInCombat[randomIndex].MaxHealth * 0.1f));
+            DisplayNewHealth();
         }
         #endregion
 
+        #region Menus Managers
+        private void HideAttackSelectionMenu(int userIndex) {
+            _attackSelectionMenus[userIndex].SetActive(false);
+        }
+
+        private void ShowAttackSelectionMenu(int userIndex) {
+            _attackSelectionMenus[userIndex].SetActive(true);
+        }
+        #endregion
     }
 }

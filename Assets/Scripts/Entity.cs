@@ -5,6 +5,9 @@ using UnityEngine;
 
 /// <summary>
 /// An entity has basic stats like level, hp, etc... but also has a mask for its crrent status effects that is used when calculating damage.
+/// 
+/// Another aproach would be to have an entity database with every pokemon base stats and have this script use a simple string for the pokemon name/id
+/// and use that name to go look for the base stats in that database instead of having multiple instances of this script will all the information and functionality all in one.
 /// </summary>
 namespace VLD.Pkmn {
     public class Entity : MonoBehaviour
@@ -12,7 +15,7 @@ namespace VLD.Pkmn {
         #region Type Definitions
         [Serializable]
         public class Stats {
-            public EntityAttacksManager.Type entityType;
+            public Attacks.Type entityType;
             public int level;
             public int health;
             public int speed;
@@ -27,9 +30,9 @@ namespace VLD.Pkmn {
         public static class StatusEffects {
             public static int Burn = 1;
             public static int Confusion = 1 << 1;
-            public static int Toxic = 1 << 2;
+            public static int Poison = 1 << 2;
             public static int Bleed = 1 << 3;
-            public static int Paralyzed = 1 << 4;
+            public static int Paralyze = 1 << 4;
             public static int Sleep = 1 << 5;
         }
         #endregion
@@ -43,7 +46,7 @@ namespace VLD.Pkmn {
 
         #region Serialized Fields
         [SerializeField] private EntityAttacksManager _attacksManager = null;
-        [SerializeField] private Stats _entityStats;
+        [SerializeField] private Stats _entityBaseStats = default;
         #endregion
 
         #region Standard Attributes
@@ -58,11 +61,16 @@ namespace VLD.Pkmn {
         }
 
         public Stats EntityStats {
-            get { return _entityStats; }
+            get { return _entityBaseStats; }
         }
 
         public int Health {
             get { return _currentHealth; }
+            set { _currentHealth = value; }
+        }
+
+        public int MaxHealth {
+            get { return _maxHealth; }
         }
 
         public bool HasSelectedAttack {
@@ -72,6 +80,15 @@ namespace VLD.Pkmn {
         #endregion
 
         #region API Methods
+        public void ResetForCombat() {
+            _hasSelectedAttack = false;
+            AttacksManager.AttackToUse = null;
+            AttacksManager.EntityToAttack = null;
+            _maxHealth = CalculateHealth(_entityBaseStats.health, _entityBaseStats.level);   //TODO: move this to a StatInit() funciton that is called once the entity's info is been set.
+            Health = _maxHealth;
+            AttacksManager.SettupAttacks();
+        }
+
         public void ResetForTurn() {
             _hasSelectedAttack = false;
             AttacksManager.AttackToUse = null;
@@ -99,10 +116,9 @@ namespace VLD.Pkmn {
         /// <param name="attackReceived"></param>
         /// <param name="attackerStats"></param>
         /// <returns></returns>
-        public int Hit(EntityAttacksManager.Attack attackReceived, Stats attackerStats) {
+        public int Hit(Attacks.Attack attackReceived, Stats attackerStats) {
             int damage = DamageFormula(attackReceived, attackerStats);
-            _entityStats.health = _entityStats.health - damage;
-            return _entityStats.health;
+            return ReduceHealth(damage);
         }
 
         /// <summary>
@@ -112,30 +128,37 @@ namespace VLD.Pkmn {
         /// <param name="damage"></param>
         /// <returns></returns>
         public int ReduceHealth(int damage) {
-            _entityStats.health = _entityStats.health - damage;
-            return _entityStats.health;
+            Health = Health - damage;
+            if(Health < 0) Health = 0;
+            return Health;
         }
 
         public int RestoreHealth(int hpRestored) {
-            int newHealth =  _entityStats.health + hpRestored;
-            if(newHealth > _maxHealth) newHealth = _maxHealth;
+            int newHealth = Health + hpRestored;
+            if(newHealth > MaxHealth) newHealth = MaxHealth;
 
-            _entityStats.health = newHealth;
-            return _entityStats.health;
+            Health = newHealth;
+            return Health;
         }
 
+        //For some reason this is toggling the bits
         public void ApplyStatusEffect(int statusToApply) {
-            _entityStats.currentStatusEffects ^= statusToApply;
+            _entityBaseStats.currentStatusEffects ^= statusToApply;
         }
 
         public void ClearStatusEffect(int statusToDisable) {
-            _entityStats.currentStatusEffects &= ~(statusToDisable);
+            _entityBaseStats.currentStatusEffects &= ~(statusToDisable);
+        }
+
+        public void ClearAllStatusEffects() {
+            ClearStatusEffect(Entity.StatusEffects.Bleed | Entity.StatusEffects.Burn | Entity.StatusEffects.Confusion | Entity.StatusEffects.Paralyze | Entity.StatusEffects.Sleep | Entity.StatusEffects.Poison);
         }
         #endregion
 
         #region Unity Lifecycle
         private void Start() {
-            CalculateHealth(_entityStats.health, _entityStats.level);
+            _maxHealth = CalculateHealth(_entityBaseStats.health, _entityBaseStats.level);   //TODO: move this to a StatInit() funciton that is called once the entity's info is been set.
+            Health = _maxHealth;
         }
         #endregion
 
@@ -143,7 +166,7 @@ namespace VLD.Pkmn {
         #endregion
 
         #region Other methods
-        private bool CheckAttackAvailability(EntityAttacksManager.Attack attack) {
+        private bool CheckAttackAvailability(Attacks.Attack attack) {
             bool canAttack = true;
 
             if(attack.currentPP <= 0) {
@@ -159,90 +182,90 @@ namespace VLD.Pkmn {
         #endregion
 
         #region Damage Calculations
-        private float TypeMatchupModifier(EntityAttacksManager.Type attacker) {
+        private float TypeMatchupModifier(Attacks.Type attacker) {
             float matchupMultiplier = 1;
             switch (attacker) {
-                case EntityAttacksManager.Type.Rock:
-                    switch (_entityStats.entityType)
+                case Attacks.Type.Rock:
+                    switch (_entityBaseStats.entityType)
                     {
-                        case EntityAttacksManager.Type.Paper:
+                        case Attacks.Type.Paper:
                             matchupMultiplier = 0.5f;
                             break;
-                        case EntityAttacksManager.Type.Scisor:
+                        case Attacks.Type.Scisor:
                             matchupMultiplier = 2f;
                             break;
-                        case EntityAttacksManager.Type.Lizard:
+                        case Attacks.Type.Lizard:
                             matchupMultiplier = 2f;
                             break;
-                        case EntityAttacksManager.Type.Spock:
+                        case Attacks.Type.Spock:
                             matchupMultiplier = 0.5f;
                             break;
                     }
                     break;
-                case EntityAttacksManager.Type.Paper:
-                    switch (_entityStats.entityType)
+                case Attacks.Type.Paper:
+                    switch (_entityBaseStats.entityType)
                     {
-                        case EntityAttacksManager.Type.Rock:
+                        case Attacks.Type.Rock:
                             matchupMultiplier = 2f;
                             break;
-                        case EntityAttacksManager.Type.Scisor:
+                        case Attacks.Type.Scisor:
                             matchupMultiplier = 0.5f;
                             break;
-                        case EntityAttacksManager.Type.Lizard:
+                        case Attacks.Type.Lizard:
                             matchupMultiplier = 0.5f;
                             break;
-                        case EntityAttacksManager.Type.Spock:
+                        case Attacks.Type.Spock:
                             matchupMultiplier = 2f;
                             break;
                     }
                     break;
-                case EntityAttacksManager.Type.Scisor:
-                    switch (_entityStats.entityType)
+                case Attacks.Type.Scisor:
+                    switch (_entityBaseStats.entityType)
                     {
-                        case EntityAttacksManager.Type.Rock:
+                        case Attacks.Type.Rock:
                             matchupMultiplier = 0.5f;
                             break;
-                        case EntityAttacksManager.Type.Paper:
+                        case Attacks.Type.Paper:
                             matchupMultiplier = 2f;
                             break;
-                        case EntityAttacksManager.Type.Lizard:
+                        case Attacks.Type.Lizard:
                             matchupMultiplier = 2f;
                             break;
-                        case EntityAttacksManager.Type.Spock:
+                        case Attacks.Type.Spock:
                             matchupMultiplier = 0.5f;
                             break;
                     }
                     break;
-                case EntityAttacksManager.Type.Lizard:
-                    switch (_entityStats.entityType)
+                case Attacks.Type.Lizard:
+                    switch (_entityBaseStats.entityType)
                     {
-                        case EntityAttacksManager.Type.Rock:
+                        case Attacks.Type.Rock:
                             matchupMultiplier = 0.5f;
                             break;
-                        case EntityAttacksManager.Type.Paper:
+                        case Attacks.Type.Paper:
                             matchupMultiplier = 2f;
                             break;
-                        case EntityAttacksManager.Type.Scisor:
+                        case Attacks.Type.Scisor:
                             matchupMultiplier = 0.5f;
                             break;
-                        case EntityAttacksManager.Type.Spock:
+                        case Attacks.Type.Spock:
                             matchupMultiplier = 2f;
                             break;
                     }
                     break;
-                case EntityAttacksManager.Type.Spock:
-                    switch (_entityStats.entityType)
+                case Attacks.Type.Spock:
+                    switch (_entityBaseStats.entityType)
                     {
-                        case EntityAttacksManager.Type.Rock:
+                        case Attacks.Type.Rock:
                             matchupMultiplier = 2f;
                             break;
-                        case EntityAttacksManager.Type.Paper:
+                        case Attacks.Type.Paper:
                             matchupMultiplier = 0.5f;
                             break;
-                        case EntityAttacksManager.Type.Scisor:
+                        case Attacks.Type.Scisor:
                             matchupMultiplier = 2f;
                             break;
-                        case EntityAttacksManager.Type.Lizard:
+                        case Attacks.Type.Lizard:
                             matchupMultiplier = 0.5f;
                             break;
                     }
@@ -258,7 +281,7 @@ namespace VLD.Pkmn {
         /// <param name="attackReceived">Attack received from the attacker.</param>
         /// <param name="attackerStats">Attacker's stats.</param>
         /// <returns>HP's damage received.</returns>
-        private int DamageFormula (VLD.Pkmn.EntityAttacksManager.Attack attackReceived, Stats attackerStats) {
+        private int DamageFormula (Attacks.Attack attackReceived, Stats attackerStats) {
             float calculatedDamage = 0f;
 
             float crit = (UnityEngine.Random.Range(0f, 1f) > 0.1f) ? 1f : 1.5f;     //Crit multiplier with a 10% chance.
@@ -271,7 +294,7 @@ namespace VLD.Pkmn {
 
             //Pokemon damage formula (Divided in parts for easier "readability"):
             float levelDependentValue = ((2 * attackerStats.level) / 5) + 2;    //Part of the damage calculation that depends on the attacker's level.
-            float attackVdefense = (attackReceived.isSpecialAttack ? (attackerStats.specialAttack / _entityStats.specialDefense) : (attackerStats.attack / _entityStats.defense));  //Part of the calculation that reduces damage based on attacker's attack and target's defense (Uses att/spatt and def/spdef depending on attack).
+            float attackVdefense = (attackReceived.isSpecialAttack ? (attackerStats.specialAttack / _entityBaseStats.specialDefense) : (attackerStats.attack / _entityBaseStats.defense));  //Part of the calculation that reduces damage based on attacker's attack and target's defense (Uses att/spatt and def/spdef depending on attack).
             calculatedDamage = (( ((levelDependentValue * attackReceived.power * attackVdefense) / 50) + 2 ) * modifier);   //Complete damage formula calculation.
             
             return Mathf.FloorToInt(calculatedDamage);

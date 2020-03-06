@@ -10,66 +10,6 @@ namespace VLD.Pkmn {
     /// </summary>
     public class EntityAttacksManager : MonoBehaviour
     {
-        //TODO: PASS REGION INTO A DIFFERENT SCRIPT INSIDE THE SAME NAMESPACE AND CREATE IN THE SAME SCRIPT HEREDING CLASSES THAT OVERRIDE AttackEffect IN ORDER TO HAVE NORMAL ATTACKS, HEALINGS AND STATUS ONLY.
-        #region Type Definitions
-        [Serializable]
-        public enum Type {
-            Rock, Paper, Scisor, Lizard, Spock
-        }
-
-        [Serializable]
-        public enum StatusEffectType {
-            Burn, Poinon, Confusion, Bleed, Paralyze, Sleep
-        }
-
-        [Serializable]
-        public class Attack {
-            public int power;
-            public float accuracy;
-            public int staminaCost;
-            public int totalPP;
-            public int currentPP;
-            public int numberOfTargets;
-            public Type type;
-            public bool isSpecialAttack;
-
-            public int inflictStatusMask;
-            public float inflictStatusProbability;
-
-            /// <summary>
-            /// Method that manages all the attack's effects such as damage, healing, etc...
-            /// This method can be overriten in order to create specific attack effects.
-            /// The default one checks for status application effects and manages the attack's damage (Basic attack).
-            /// </summary>
-            /// <param name="userEntityManager"></param>
-            /// <param name="targetEntityManager"></param>
-            public virtual void AttackEffect(Entity userEntityManager, Entity targetEntityManager) {
-                if(inflictStatusMask != 0) {
-                    float randomChance = UnityEngine.Random.Range(0f, 1f);
-                    if(randomChance <= inflictStatusProbability) {
-                        //Apply Status Effect
-                        targetEntityManager.ApplyStatusEffect(inflictStatusMask);
-                    }
-                }
-
-                targetEntityManager.Hit(this, userEntityManager.EntityStats);
-            }
-        }
-        
-        [Serializable]
-        public class AttackConfiguration {
-            public int _power;
-            public float _accuracy;
-            public int _maxPP;
-            public int _numberOfTargets;
-            public Type type;
-            public bool isSpecialAttack;
-
-            public StatusEffectType inflictStatusMask;
-            public float inflictStatusProbability;
-        }
-        #endregion
-        
         #region Events
         #endregion
 
@@ -77,18 +17,18 @@ namespace VLD.Pkmn {
         #endregion
 
         #region Serialized Fields
-        public AttackConfiguration[] _attacksConfigs = new AttackConfiguration[4];  //Basic constant configurations for each attack set in the inspector that is then translated into the Attack class that holds updated info, such as current PP.
-        public List<Attack> _unlearnedAttacks;
+        public Attacks.AttackConfiguration[] _attacksConfigs = new Attacks.AttackConfiguration[4];  //Basic constant configurations for each attack set in the inspector that is then translated into the Attack class that holds updated info, such as current PP.
+        public List<Attacks.Attack> _unlearnedAttacks;
         #endregion
 
         #region Standard Attributes
-        private Attack[] _attacks = new Attack[4];  //Updated info of all attacks.
-        private Attack _attackToUse = null;
+        private Attacks.Attack[] _attacks = new Attacks.Attack[4];  //Updated info of all attacks.
+        private Attacks.Attack _attackToUse = null;
         private Entity _targetEntity = null;
         #endregion
 
         #region Consultors and Modifiers
-        public Attack AttackToUse {
+        public Attacks.Attack AttackToUse {
             get { return _attackToUse; }
             set { _attackToUse = value; }
         }
@@ -98,12 +38,16 @@ namespace VLD.Pkmn {
             set { _targetEntity = value; }
         }
 
-        public EntityAttacksManager.Attack[] GetAttacks() {
+        public Attacks.Attack[] GetAttacks() {
             return _attacks;
         }
         #endregion
 
         #region API Methods
+        public void SettupAttacks() {
+            SetAttacks();
+        }
+
         public bool TryUseAttack(int attackIndex) {
             bool canAttack = true;
 
@@ -125,7 +69,88 @@ namespace VLD.Pkmn {
 
         #region Other methods
         private void SetAttacks() {
+            Debug.Log("SetAttacks");
             //Translate AttackConfiguration array into Attack array. This way I can have different archetype of attacks (damaging, healing, status only) and use polymorphism.
+            for (int i = 0; i < _attacksConfigs.Length; i++) {
+                switch (_attacksConfigs[i].archetype) {
+                    case Attacks.AttackArchetype.Normal: {
+                        Attacks.Attack tempAttack = new Attacks.Attack();
+                        tempAttack.power = _attacksConfigs[i].power;
+                        tempAttack.accuracy = _attacksConfigs[i].accuracy;
+                        tempAttack.totalPP = tempAttack.currentPP = _attacksConfigs[i].maxPP;
+                        tempAttack.numberOfTargets = _attacksConfigs[i].numberOfTargets;
+                        tempAttack.type = _attacksConfigs[i].type;
+                        tempAttack.isSpecialAttack = _attacksConfigs[i].isSpecialAttack;
+                        tempAttack.inflictStatusMask = GetStatusEffectMaskFromType(_attacksConfigs[i].inflictStatusMask);
+                        tempAttack.inflictStatusProbability = _attacksConfigs[i].inflictStatusProbability;
+
+                        _attacks[i] = tempAttack;
+                    }
+                    break;
+
+                    case Attacks.AttackArchetype.PureStatus: {
+                        Attacks.Attack tempAtt = new Attacks.Attack();
+                        tempAtt.power = 0;
+                        tempAtt.accuracy = _attacksConfigs[i].accuracy;
+                        tempAtt.totalPP = tempAtt.currentPP = _attacksConfigs[i].maxPP;
+                        tempAtt.numberOfTargets = _attacksConfigs[i].numberOfTargets;
+                        tempAtt.type = _attacksConfigs[i].type;
+                        tempAtt.isSpecialAttack = false;
+                        tempAtt.inflictStatusMask = GetStatusEffectMaskFromType(_attacksConfigs[i].inflictStatusMask);
+                        tempAtt.inflictStatusProbability = _attacksConfigs[i].inflictStatusProbability;
+
+                        _attacks[i] = tempAtt;
+                    }
+                    break;
+
+                    case Attacks.AttackArchetype.Healing: {
+                        Attacks.HealingAttack tempHealAttack = new Attacks.HealingAttack();
+                        tempHealAttack.clearAllStatusEffects = _attacksConfigs[i].isSpecialAttack;
+                        tempHealAttack.hpToRestore = _attacksConfigs[i].power;
+
+                        tempHealAttack.power = 0;
+                        tempHealAttack.accuracy = _attacksConfigs[i].accuracy;
+                        tempHealAttack.totalPP = tempHealAttack.currentPP = _attacksConfigs[i].maxPP;
+                        tempHealAttack.numberOfTargets = _attacksConfigs[i].numberOfTargets;
+                        tempHealAttack.type = _attacksConfigs[i].type;
+                        tempHealAttack.isSpecialAttack = false;
+                        tempHealAttack.inflictStatusMask = GetStatusEffectMaskFromType(_attacksConfigs[i].inflictStatusMask);
+                        tempHealAttack.inflictStatusProbability = _attacksConfigs[i].inflictStatusProbability;
+                        _attacks[i] = tempHealAttack;
+                    }
+                    break;
+                }
+                }
+        }
+
+        private int GetStatusEffectMaskFromType(Attacks.StatusEffectType type) {
+            int statusMask = 0;
+            switch (type) {
+                case Attacks.StatusEffectType.Bleed:
+                statusMask = Entity.StatusEffects.Bleed;
+                break;
+
+                case Attacks.StatusEffectType.Burn:
+                statusMask = Entity.StatusEffects.Burn;
+                break;
+
+                case Attacks.StatusEffectType.Confusion:
+                statusMask = Entity.StatusEffects.Confusion;
+                break;
+
+                case Attacks.StatusEffectType.Paralyze:
+                statusMask = Entity.StatusEffects.Paralyze;
+                break;
+
+                case Attacks.StatusEffectType.Poison:
+                statusMask = Entity.StatusEffects.Poison;
+                break;
+
+                case Attacks.StatusEffectType.Sleep:
+                statusMask = Entity.StatusEffects.Sleep;
+                break;
+            }
+            return statusMask;
         }
 
         /// <summary>
