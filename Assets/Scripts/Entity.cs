@@ -41,7 +41,6 @@ namespace VLD.Pkmn {
         #endregion
 
         #region Constants
-        private const float CRITCHANCE = 0.1f;
         #endregion
 
         #region Serialized Fields
@@ -284,7 +283,7 @@ namespace VLD.Pkmn {
         private int DamageFormula (Attacks.Attack attackReceived, Stats attackerStats) {
             float calculatedDamage = 0f;
 
-            float crit = (UnityEngine.Random.Range(0f, 1f) > 0.1f) ? 1f : 1.5f;     //Crit multiplier with a 10% chance.
+            float crit = (UnityEngine.Random.Range(0f, 1f) > GlobalInformation.CRITCHANCE) ? 1f : 1.5f;     //Crit multiplier with a 10% chance.
             int stab = (attackerStats.entityType == attackReceived.type) ? 2 : 1;   //STAB multiplier depends on whether the attacker and its attack are of the same type.
             float typeMatchupModifier = TypeMatchupModifier(attackerStats.entityType);    //Type matchup multiplier depends on whether the attack's type and its target's has an advantage/disadvantage.
             float burnModifier = (((attackerStats.currentStatusEffects & StatusEffects.Burn) == 0) && !attackReceived.isSpecialAttack) ? 1 : 0.5f;  //If the oponent is burned and the attack is physical the damage is halved.

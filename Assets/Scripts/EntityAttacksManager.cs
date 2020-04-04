@@ -69,12 +69,13 @@ namespace VLD.Pkmn {
 
         #region Other methods
         private void SetAttacks() {
-            Debug.Log("SetAttacks");
+            //Debug.Log("SetAttacks");
             //Translate AttackConfiguration array into Attack array. This way I can have different archetype of attacks (damaging, healing, status only) and use polymorphism.
             for (int i = 0; i < _attacksConfigs.Length; i++) {
                 switch (_attacksConfigs[i].archetype) {
                     case Attacks.AttackArchetype.Normal: {
                         Attacks.Attack tempAttack = new Attacks.Attack();
+                        tempAttack.name = _attacksConfigs[i].name;
                         tempAttack.power = _attacksConfigs[i].power;
                         tempAttack.accuracy = _attacksConfigs[i].accuracy;
                         tempAttack.totalPP = tempAttack.currentPP = _attacksConfigs[i].maxPP;
@@ -90,6 +91,7 @@ namespace VLD.Pkmn {
 
                     case Attacks.AttackArchetype.PureStatus: {
                         Attacks.Attack tempAtt = new Attacks.Attack();
+                        tempAtt.name = _attacksConfigs[i].name;
                         tempAtt.power = 0;
                         tempAtt.accuracy = _attacksConfigs[i].accuracy;
                         tempAtt.totalPP = tempAtt.currentPP = _attacksConfigs[i].maxPP;
@@ -105,6 +107,7 @@ namespace VLD.Pkmn {
 
                     case Attacks.AttackArchetype.Healing: {
                         Attacks.HealingAttack tempHealAttack = new Attacks.HealingAttack();
+                        tempHealAttack.name = _attacksConfigs[i].name;
                         tempHealAttack.clearAllStatusEffects = _attacksConfigs[i].isSpecialAttack;
                         tempHealAttack.hpToRestore = _attacksConfigs[i].power;
 
@@ -116,6 +119,7 @@ namespace VLD.Pkmn {
                         tempHealAttack.isSpecialAttack = false;
                         tempHealAttack.inflictStatusMask = GetStatusEffectMaskFromType(_attacksConfigs[i].inflictStatusMask);
                         tempHealAttack.inflictStatusProbability = _attacksConfigs[i].inflictStatusProbability;
+
                         _attacks[i] = tempHealAttack;
                     }
                     break;

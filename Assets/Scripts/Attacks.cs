@@ -14,7 +14,7 @@ namespace VLD.Pkmn {
 
             [Serializable]
             public enum Type {
-                Rock, Paper, Scisor, Lizard, Spock
+                Rock = 0, Paper = 1, Scisor = 2, Lizard = 3, Spock = 4
             }
 
             [Serializable]
@@ -24,6 +24,7 @@ namespace VLD.Pkmn {
 
             [Serializable]
             public class Attack {
+                public string name;
                 public int power;
                 public float accuracy;
                 public int totalPP;
@@ -69,6 +70,7 @@ namespace VLD.Pkmn {
             
             [Serializable]
             public class AttackConfiguration {
+                public string name;
                 public AttackArchetype archetype;
                 public int power;   //Power can be used for healing only attacks as the amount of health to be restored.
                 public float accuracy;

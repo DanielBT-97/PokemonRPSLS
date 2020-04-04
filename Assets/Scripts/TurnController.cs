@@ -18,7 +18,8 @@ namespace VLD.Pkmn {
         public Entity _defaultEntity = null;
         public Entity[] _entitiesInCombat = new Entity[2];  //This should change to a list in case I want to implement more than a 1v1.
         public UnityEngine.UI.Slider[] _hpSlider = new UnityEngine.UI.Slider[2];
-        public GameObject[] _attackSelectionMenus = new GameObject[2];
+        public AttackSelectionMenu[] _attackSelectionMenus = new AttackSelectionMenu[2];
+        public CombatStatDisplayManager[] _entityInfoDiaplyers = new CombatStatDisplayManager[2];
         #endregion
 
         #region Standard Attributes
@@ -34,6 +35,9 @@ namespace VLD.Pkmn {
             oponent.ResetForCombat();
             _entitiesInCombat[0] = player;
             _entitiesInCombat[1] = oponent;
+            
+            FillEntitiesInfo();
+            NextTurn();
         }
 
         public void StartCombat() {
@@ -125,6 +129,7 @@ namespace VLD.Pkmn {
                 ShowAttackSelectionMenu(i);
             }
 
+            FillAttacksInfo();
         }
 
         [ContextMenu("HealthDisplay")]
@@ -132,6 +137,7 @@ namespace VLD.Pkmn {
             for(int i = 0; i < _entitiesInCombat.Length; ++i) {
                 float newValue = _entitiesInCombat[i].Health / (float)(_entitiesInCombat[i].MaxHealth);
                 _hpSlider[i].value = newValue;
+                _entityInfoDiaplyers[i].EntityInfo.health.text = _entitiesInCombat[i].Health + "/" + _entitiesInCombat[i].MaxHealth;
             }
         }
 
@@ -143,13 +149,25 @@ namespace VLD.Pkmn {
         }
         #endregion
 
-        #region Menus Managers
+        #region Menus Managers & Info Displays
+        private void FillEntitiesInfo() {
+            for(int i = 0; i < _entityInfoDiaplyers.Length; ++i) {
+                _entityInfoDiaplyers[i].UpdateInfo(_entitiesInCombat[i]);
+            }
+        }
+
+        private void FillAttacksInfo() {
+            for(int userIndex = 0; userIndex < _entitiesInCombat.Length; ++userIndex) {
+                _attackSelectionMenus[userIndex].UpdateAttacksInfo(_entitiesInCombat[userIndex].AttacksManager.GetAttacks());
+            }
+        }
+
         private void HideAttackSelectionMenu(int userIndex) {
-            _attackSelectionMenus[userIndex].SetActive(false);
+            _attackSelectionMenus[userIndex].gameObject.SetActive(false);
         }
 
         private void ShowAttackSelectionMenu(int userIndex) {
-            _attackSelectionMenus[userIndex].SetActive(true);
+            _attackSelectionMenus[userIndex].gameObject.SetActive(true);
         }
         #endregion
     }
